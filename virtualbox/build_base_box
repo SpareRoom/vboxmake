@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+VERSION="0.1.0"
+VM_NAME="sr_web_dev.${VERSION}"
+TFTP_DIR="${HOME}/Library/VirtualBox/TFTP"
+
+VBoxManage showvminfo "${VM_NAME}" > /dev/null 2>&1 \
+    && VBoxManage unregistervm "${VM_NAME}" --delete
+
+VBoxManage createvm \
+    --name "${VM_NAME}" \
+    --ostype "RedHat_64" \
+    --register
+
+# Extract some machine settings as variables:
+eval $(VBoxManage showvminfo "${VM_NAME}" --machinereadable | grep CfgFile)
+eval $(VBoxManage showvminfo "${VM_NAME}" --machinereadable | grep UUID)
+
+VM_DIR=$(dirname "$CfgFile")
+VM_HD="${VM_DIR}/${VM_NAME}.vdi"
+VM_TFTP_DIR="${TFTP_DIR}/${UUID}/pxelinux.cfg"
+
+mkdir -p "${VM_TFTP_DIR}"
+
+cat <<'EOF' > "${TFTP_DIR}/${VM_NAME}.pxe"
+#!ipxe
+set 210:string ${smbios/uuid}/
+chain pxelinux.0
+EOF
+
+cat <<'EOF' > "${VM_TFTP_DIR}/default"
+default install
+prompt 1
+timeout 10
+display boot.msg
+label install
+  kernel vmlinuz
+  append initrd=initrd.img text ks=cdrom:/ks/ks.cfg ksdevice=eth1
+EOF
+
+ln -s "${TFTP_DIR}/initrd.img" "${TFTP_DIR}/${UUID}/"
+ln -s "${TFTP_DIR}/vmlinuz"    "${TFTP_DIR}/${UUID}/"
+
+VBoxManage modifyvm "${VM_NAME}" \
+  --memory 1024 \
+  --vram 10 \
+  --ioapic on \
+  --pae on \
+  --hwvirtex on \
+  --nestedpaging on \
+  --vtxvpid on \
+  --cpus 2 \
+  --rtcuseutc on \
+  --boot1 disk \
+  --boot2 net \
+  --boot3 dvd \
+  --boot4 none \
+  --nic1 nat \
+  --nictype1 82540EM \
+  --audio none \
+  --usb off
+
+VBoxManage storagectl "${VM_NAME}" \
+  --name "IDE" \
+  --add "ide" \
+  --controller "ICH6" \
+  --hostiocache on \
+  --bootable on
+  
+VBoxManage storagectl "${VM_NAME}" \
+  --name "SATA" \
+  --add "sata" \
+  --controller "IntelAhci" \
+  --hostiocache on \
+  --bootable on
+
+VBoxManage createhd \
+  --filename "${VM_HD}" \
+  --size 28610 \
+  --format VDI \
+  --variant Standard
+
+VBoxManage storageattach "${VM_NAME}" \
+  --storagectl "SATA" \
+  --type hdd \
+  --port 0 \
+  --device 0 \
+  --medium "${VM_HD}"
+

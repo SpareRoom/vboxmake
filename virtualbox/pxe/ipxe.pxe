@@ -1,0 +1,3 @@
+#!ipxe
+set 210:string ${smbios/uuid}/
+chain pxelinux.0
