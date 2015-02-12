@@ -1,0 +1,6 @@
+default install
+prompt 0
+
+label install
+  kernel linux/images/pxeboot/vmlinuz
+  append initrd=linux/images/pxeboot/initrd.img ks=ks.cfg

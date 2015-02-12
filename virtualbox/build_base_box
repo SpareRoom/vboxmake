@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 
 VERSION="0.1.0"
+
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 VM_NAME="sr_web_dev.${VERSION}"
 TFTP_DIR="${HOME}/Library/VirtualBox/TFTP"
+LINUX_ISO="${HOME}/tftpboot/CentOS-7.0-1406-x86_64-Minimal.iso"
+LINUX_DIR="${HOME}/tftpboot/CentOS-7.0-1406-x86_64-Minimal"
+SYSLINUX="${HOME}/tftpboot/syslinux-4.07"
+IPXE="${DIR}/tftpboot/ipxe.pxe"
 
 VBoxManage showvminfo "${VM_NAME}" > /dev/null 2>&1 \
     && VBoxManage unregistervm "${VM_NAME}" --delete
@@ -22,24 +28,15 @@ VM_TFTP_DIR="${TFTP_DIR}/${UUID}/pxelinux.cfg"
 
 mkdir -p "${VM_TFTP_DIR}"
 
-cat <<'EOF' > "${TFTP_DIR}/${VM_NAME}.pxe"
-#!ipxe
-set 210:string ${smbios/uuid}/
-chain pxelinux.0
-EOF
+rm -f "${TFTP_DIR}/${UUID}/pxelinux.0"
+rm -f "${TFTP_DIR}/${UUID}/linux"
+rm -f "${TFTP_DIR}/${VM_NAME}.pxe"
+rm -f "${VM_TFTP_DIR}/default"
 
-cat <<'EOF' > "${VM_TFTP_DIR}/default"
-default install
-prompt 1
-timeout 10
-display boot.msg
-label install
-  kernel vmlinuz
-  append initrd=initrd.img text ks=cdrom:/ks/ks.cfg ksdevice=eth1
-EOF
-
-ln -s "${TFTP_DIR}/initrd.img" "${TFTP_DIR}/${UUID}/"
-ln -s "${TFTP_DIR}/vmlinuz"    "${TFTP_DIR}/${UUID}/"
+ln -s "${SYSLINUX}/core/pxelinux.0" "${TFTP_DIR}/${UUID}/pxelinux.0"
+ln -s "${LINUX_DIR}"                "${TFTP_DIR}/${UUID}/linux"
+ln -s "${DIR}/tftpboot/ipxe.pxe"    "${TFTP_DIR}/${VM_NAME}.pxe"
+ln -s "${DIR}/tftpboot/pxe_menu"    "${VM_TFTP_DIR}/default"
 
 VBoxManage modifyvm "${VM_NAME}" \
   --memory 1024 \
@@ -66,7 +63,14 @@ VBoxManage storagectl "${VM_NAME}" \
   --controller "ICH6" \
   --hostiocache on \
   --bootable on
-  
+
+VBoxManage storageattach "${VM_NAME}" \
+  --storagectl "IDE" \
+  --type dvddrive \
+  --port 0 \
+  --device 0 \
+  --medium "${LINUX_ISO}"
+
 VBoxManage storagectl "${VM_NAME}" \
   --name "SATA" \
   --add "sata" \
@@ -86,4 +90,3 @@ VBoxManage storageattach "${VM_NAME}" \
   --port 0 \
   --device 0 \
   --medium "${VM_HD}"
-
