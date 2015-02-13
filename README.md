@@ -2,11 +2,11 @@
 
 ## Synopsis
 
-This repo contains scripts and configuration files to automate the production of VirtualBox base boxes.
+This repo contains scripts and configuration files to automate the production of VirtualBox base boxes.  It's a work in progress, and has been developed specifically for use on OS X.  It is currently only suitable for installing CentOS 7.0, but it wouldn't require too much effort to install other Linux distros.
 
 ## The process
 
-- The built-in VirtualBox PXE-enabled DHCP server supplies a new VM with an IP address, and specifies the path to the bootloader file.  This path in the format `<vm name>.pxe`, so there must be one file per VM.
+- The built-in VirtualBox PXE-enabled DHCP server supplies a new VM with an IP address, and specifies the path to the bootloader file.  This path is in the format `<vm name>.pxe`, so there must be one file per VM.
 
 - Because VirtualBox uses [iPXE][1] firmware, we replace the standard `pxelinux.0` file with a simple [iPXE script][2] .  The script sets the TFTP prefix to the name of the VM, thus allowing separate PXE configurations to be created for different VMs.  The script then passes the location of the real `pxelinux.0` bootloader file to iPXE.  `pxelinux.0` is obtained from the [Syslinux PXELINUX][3] project.
 
@@ -58,9 +58,19 @@ curl -O https://www.kernel.org/pub/linux/utils/boot/syslinux/syslinux-4.07.tar.g
 tar xvzf syslinux-4.07.tar.gz syslinux-4.07/core/pxelinux.0
 ```
 
+## Notes
+
+- The goal was for a solution that was quick to run, and which didn't require copying files to external HTTP or NFS servers.
+
+- It looks as though it might be possible to bypass `pxelinux.0` altogether, and just use iPXE.  But the version of iPXE that is bundled with VirtualBox only has a minimal feature-set.  Attempts to [chain-load][6] a full version of iPXE seemed promising, but VirtualBox's DHCP server refused to issue a second IP address.
+
+- Earlier revisions loaded the Kickstart configuration from a [local HTTP server][7], but in the end, creating a separate CD-ROM ISO proved simpler and more reliable.
+
+
 [1]: http://ipxe.org/
 [2]: http://ipxe.org/scripting
 [3]: http://www.syslinux.org/wiki/index.php/PXELINUX
 [4]: http://www.syslinux.org/wiki/index.php/Doc/isolinux#HYBRID_CD-ROM.2FHARD_DISK_MODE
 [5]: http://www.gnu.org/software/xorriso/xorriso_eng.html
-
+[6]: http://ipxe.org/howto/chainloading
+[7]: http://www.andyjamesdavies.com/blog/javascript/simple-http-server-on-mac-os-x-in-seconds
