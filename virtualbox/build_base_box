@@ -46,9 +46,7 @@ ln -s "${DIR}/tftpboot/ks.cfg"   "${VM_PXE_DIR}/ks.cfg"
 
 xorrisofs -r -V "VBox_Builder" \
   -o "${VM_BUILDER_ISO}" \
-  "${DIR}/tftpboot/ks.cfg" \
-  "${LINUX_DIR}/images/pxeboot/initrd.img" \
-  "${LINUX_DIR}/images/pxeboot/vmlinuz"
+  "${DIR}/tftpboot/ks.cfg"
 
 VBoxManage createvm \
   --name "${VM_NAME}" \

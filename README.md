@@ -20,7 +20,7 @@ This repo contains scripts and configuration files to automate the production of
 
 ### Install xorriso
 
-A number of Linux distributions are now supplied in a [hyrbid mode ISO format][4].  The OS X `hdiutil` command is unable to understand this format, and instead returns the error `no mountable filesystem`.  As an alternative, we'll use the [GNU xorriso][5] tool to extract the ISO file contents directly to disk.  I was going to use 7z, the command-line version of the 7-zip program, but unfortunately this does not support Rock Ridge filesystems, and therefore truncates some filenames to 64 characters.  This is a problem, as some of the files in the `repodata` directory are longer than this.
+xorriso is used to extract `initrd.img` and `vmlinuz` from the Linux distribution, and to create the ISO CD-ROM image that contains the Kickstart configuration file.
 
 ```
 cd /tmp
@@ -58,9 +58,19 @@ curl -O https://www.kernel.org/pub/linux/utils/boot/syslinux/syslinux-4.07.tar.g
 tar xvzf syslinux-4.07.tar.gz syslinux-4.07/core/pxelinux.0
 ```
 
+## Usage
+
+Beware!  `build_base_box` currently supports only one name for the VM, and it deletes that VM each time it is run.
+
+```
+virtualbox/build_base_box
+```
+
 ## Notes
 
 - The goal was for a solution that was quick to run, and which didn't require copying files to external HTTP or NFS servers.
+
+- A number of Linux distributions are now supplied in a [hyrbid mode ISO format][4].  The OS X `hdiutil` command is unable to understand this format, and instead returns the error `no mountable filesystem`, so it was not possible to use this to extract files from the Linux distribution.  The [GNU xorriso][5] tool handles hybrid ISOs without problem, and it can also create ISO images.
 
 - It looks as though it might be possible to bypass `pxelinux.0` altogether, and just use iPXE.  But the version of iPXE that is bundled with VirtualBox only has a minimal feature-set.  Attempts to [chain-load][6] a full version of iPXE seemed promising, but VirtualBox's DHCP server refused to issue a second IP address.
 
