@@ -2,41 +2,51 @@
 
 VERSION="0.1.0"
 
-DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-VM_NAME="sr_web_dev.${VERSION}"
-TFTP_DIR="${HOME}/Library/VirtualBox/TFTP"
 LINUX_ISO="${HOME}/tftpboot/CentOS-7.0-1406-x86_64-Minimal.iso"
 LINUX_DIR="${HOME}/tftpboot/CentOS-7.0-1406-x86_64-Minimal"
-SYSLINUX="${HOME}/tftpboot/syslinux-4.07"
-IPXE="${DIR}/tftpboot/ipxe.pxe"
+SYSLINUX_DIR="${HOME}/tftpboot/syslinux-4.07"
+VM_NAME="sr_web_dev.${VERSION}"
+
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+TFTP_DIR="${HOME}/Library/VirtualBox/TFTP"
+VM_TFTP_DIR="${TFTP_DIR}/${VM_NAME}"
+VM_SYSLINUX_DIR="${VM_TFTP_DIR}/syslinux"
+VM_LINUX_DIR="${VM_TFTP_DIR}/linux"
+VM_PXE_DIR="${VM_TFTP_DIR}/pxelinux.cfg"
+
+echo "VirtualBox TFTP dir: ${TFTP_DIR}"
+echo "VM PXE boot file:    ${VM_TFTP_DIR}.pxe"
+echo "VM PXE boot dir:     ${VM_TFTP_DIR}"
+echo "Syslinux dir:        ${VM_SYSLINUX_DIR}"
+echo "pxelinux.0           ${VM_SYSLINUX_DIR}/core/pxelinux.0"
+echo "pxelinux.cfg dir:    ${VM_PXE_DIR}"
+echo "Boot menu:           ${VM_PXE_DIR}/default"
+echo "Kickstart script:    ${VM_PXE_DIR}/ks.cfg"
+echo "Linux dir:           ${VM_LINUX_DIR}"
 
 VBoxManage showvminfo "${VM_NAME}" > /dev/null 2>&1 \
     && VBoxManage unregistervm "${VM_NAME}" --delete
+
+rm -rf "${TFTP_DIR}/${VM_NAME}"
+rm -rf "${TFTP_DIR}/${VM_NAME}.pxe"
+
+mkdir -p "${VM_PXE_DIR}"
+
+cat <<EOF > "${VM_TFTP_DIR}.pxe"
+#!ipxe
+set 210:string ${VM_NAME}/
+chain ${VM_NAME}/syslinux/core/pxelinux.0
+EOF
+
+ln -s "${SYSLINUX_DIR}"          "${VM_SYSLINUX_DIR}"
+ln -s "${LINUX_DIR}"             "${VM_LINUX_DIR}"
+ln -s "${DIR}/tftpboot/pxe_menu" "${VM_PXE_DIR}/default"
+ln -s "${DIR}/tftpboot/ks.cfg"   "${VM_PXE_DIR}/ks.cfg"
 
 VBoxManage createvm \
     --name "${VM_NAME}" \
     --ostype "RedHat_64" \
     --register
-
-# Extract some machine settings as variables:
-eval $(VBoxManage showvminfo "${VM_NAME}" --machinereadable | grep CfgFile)
-eval $(VBoxManage showvminfo "${VM_NAME}" --machinereadable | grep UUID)
-
-VM_DIR=$(dirname "$CfgFile")
-VM_HD="${VM_DIR}/${VM_NAME}.vdi"
-VM_TFTP_DIR="${TFTP_DIR}/${UUID}/pxelinux.cfg"
-
-mkdir -p "${VM_TFTP_DIR}"
-
-rm -f "${TFTP_DIR}/${UUID}/pxelinux.0"
-rm -f "${TFTP_DIR}/${UUID}/linux"
-rm -f "${TFTP_DIR}/${VM_NAME}.pxe"
-rm -f "${VM_TFTP_DIR}/default"
-
-ln -s "${SYSLINUX}/core/pxelinux.0" "${TFTP_DIR}/${UUID}/pxelinux.0"
-ln -s "${LINUX_DIR}"                "${TFTP_DIR}/${UUID}/linux"
-ln -s "${DIR}/tftpboot/ipxe.pxe"    "${TFTP_DIR}/${VM_NAME}.pxe"
-ln -s "${DIR}/tftpboot/pxe_menu"    "${VM_TFTP_DIR}/default"
 
 VBoxManage modifyvm "${VM_NAME}" \
   --memory 1024 \
@@ -77,6 +87,12 @@ VBoxManage storagectl "${VM_NAME}" \
   --controller "IntelAhci" \
   --hostiocache on \
   --bootable on
+
+# Extract some machine settings as variables:
+eval $(VBoxManage showvminfo "${VM_NAME}" --machinereadable | grep CfgFile)
+
+VM_DIR=$(dirname "$CfgFile")
+VM_HD="${VM_DIR}/${VM_NAME}.vdi"
 
 VBoxManage createhd \
   --filename "${VM_HD}" \
