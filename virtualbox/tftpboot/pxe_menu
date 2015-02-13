@@ -1,6 +1,4 @@
-default Auto install
-timeout 3
-LABEL Auto install
-    MENU LABEL Install Linux
+default install
+LABEL install
     KERNEL linux/images/pxeboot/vmlinuz
-    APPEND initrd=linux/images/pxeboot/initrd.img ip=dhcp ks=http://192.168.1.15:8080/ks.cfg
+    APPEND initrd=linux/images/pxeboot/initrd.img ip=dhcp ks=cdrom:sr1:/ks.cfg

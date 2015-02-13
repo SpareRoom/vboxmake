@@ -4,21 +4,17 @@
 
 This repo contains scripts and configuration files to automate the production of VirtualBox base boxes.
 
-Notes:
-
-The plan is to use VirtualBox's local PXE implementation to bootstrap the CentOS installation.  This requires a PXE boot loader file to be placed in `~/Library/VirtualBox/TFTP`.  It must be called `<vm name>.pxe`.  The SysLinux project's PXELINUX might do the trick:
-
-http://www.syslinux.org/wiki/index.php/PXELINUX
-
 ## The process
 
 - The built-in VirtualBox PXE-enabled DHCP server supplies a new VM with an IP address, and specifies the path to the bootloader file.  This path in the format `<vm name>.pxe`, so there must be one file per VM.
 
-- Because VirtualBox uses [iPXE][1] firmware, we replace the standard `pxelinux.0` file with a simple [iPXE script][2] .  The script sets the TFTP prefix to the UUID of the VM, thus allowing different PXE menus to be created for different VMs.  The script then passes the location of the real `pxelinux.0` bootloader file to iPXE.  `pxelinux.0` is obtained from the [Syslinux PXELINUX][3] project.
+- Because VirtualBox uses [iPXE][1] firmware, we replace the standard `pxelinux.0` file with a simple [iPXE script][2] .  The script sets the TFTP prefix to the name of the VM, thus allowing separate PXE configurations to be created for different VMs.  The script then passes the location of the real `pxelinux.0` bootloader file to iPXE.  `pxelinux.0` is obtained from the [Syslinux PXELINUX][3] project.
 
-- The PXE boot process loads `pxelinux.0`, and then looks for `initrd.img` and `vmlinuz` in the TFTP prefix directory (the VM UUID directory).  `initrd.img` creates the initial ramdisk, and `vmlinuz` is the Linux kernel.
+- The PXE boot process loads `pxelinux.0`, which in turn loads the syslinux configuration menu file.  The config file provides the necessary kernel parameters, including the location of `initrd.img`, `vmlinuz` and the Kickstart configuration file.
 
-- `pxelinux.0` looks for 
+- As part of the build process, an ISO file is generated that contains the Kickstart configuration file.  This ISO is attached to the VM as a secondary DVD-ROM drive so that the boot process can load it.  This negates the need to either build a custom `initrd.img` (which is rather difficult on OS X), or to have the file available over HTTP.
+
+- Finally, the Kickstart configuration takes over, and installs the system.
 
 ## Prerequisites
 
@@ -38,20 +34,18 @@ sudo make install
 
 ### Download and extract CentOS
 
+The PXE boot loader installs a temporary root file system (`initrd.img`) and the Linux kernel (`vmlinuz`) into memory, and starts the kernel.  The Linux kernel is then able to continue with the boot process.  Both `initrd.img` and `vmlinuz` must be obtained from the distribution that is going to be installed.
+
 These instructions are for the CentOS 7.0 minimal install ISO, but the commands for other versions and operating systems should be similar:
 
 ```
 mkdir -p ~/tftpboot && cd $_
 curl -O http://mirrors.melbourne.co.uk/sites/ftp.centos.org/centos/7.0.1406/isos/x86_64/CentOS-7.0-1406-x86_64-Minimal.iso
 
-mkdir CentOS-7.0-1406-x86_64-Minimal
-xorriso -osirrox on -indev CentOS-7.0-1406-x86_64-Minimal.iso -extract / CentOS-7.0-1406-x86_64-Minimal
+xorriso -osirrox on \
+  -indev CentOS-7.0-1406-x86_64-Minimal.iso \
+  -extract /images/pxeboot/ CentOS-7.0-1406-x86_64-Minimal/images/pxeboot/
 ```
-
-PXE booting requires these files to bootstrap the installation:
-
-- `images/pxeboot/initrd.img`
-- `images/pxeboot/vmlinuz`
 
 ### Download and extract Syslinux
 
@@ -63,11 +57,6 @@ curl -O https://www.kernel.org/pub/linux/utils/boot/syslinux/syslinux-4.07.tar.g
 
 tar xvzf syslinux-4.07.tar.gz syslinux-4.07/core/pxelinux.0
 ```
-
-### Syslinux
-
-The PXE boot loader installs a temporary root file system (`initrd.img`) and the Linux kernel (`vmlinuz`) into memory, and starts the kernel.  The Linux kernel is then able to continue with the boot process.  Both `initrd.img` and `vmlinuz` can be found in the CentOS Linux distribution.
-
 
 [1]: http://ipxe.org/
 [2]: http://ipxe.org/scripting

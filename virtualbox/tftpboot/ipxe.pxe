@@ -1,3 +1,0 @@
-#!ipxe
-set 210:string ${VM_NAME}/
-chain ${smbios/uuid}/syslinux/core/pxelinux.0

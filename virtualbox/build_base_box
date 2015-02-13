@@ -13,6 +13,7 @@ VM_TFTP_DIR="${TFTP_DIR}/${VM_NAME}"
 VM_SYSLINUX_DIR="${VM_TFTP_DIR}/syslinux"
 VM_LINUX_DIR="${VM_TFTP_DIR}/linux"
 VM_PXE_DIR="${VM_TFTP_DIR}/pxelinux.cfg"
+VM_BUILDER_ISO="${TFTP_DIR}/${VM_NAME}/vb_builder.iso"
 
 echo "VirtualBox TFTP dir: ${TFTP_DIR}"
 echo "VM PXE boot file:    ${VM_TFTP_DIR}.pxe"
@@ -43,10 +44,16 @@ ln -s "${LINUX_DIR}"             "${VM_LINUX_DIR}"
 ln -s "${DIR}/tftpboot/pxe_menu" "${VM_PXE_DIR}/default"
 ln -s "${DIR}/tftpboot/ks.cfg"   "${VM_PXE_DIR}/ks.cfg"
 
+xorrisofs -r -V "VBox_Builder" \
+  -o "${VM_BUILDER_ISO}" \
+  "${DIR}/tftpboot/ks.cfg" \
+  "${LINUX_DIR}/images/pxeboot/initrd.img" \
+  "${LINUX_DIR}/images/pxeboot/vmlinuz"
+
 VBoxManage createvm \
-    --name "${VM_NAME}" \
-    --ostype "RedHat_64" \
-    --register
+  --name "${VM_NAME}" \
+  --ostype "RedHat_64" \
+  --register
 
 VBoxManage modifyvm "${VM_NAME}" \
   --memory 1024 \
@@ -80,6 +87,13 @@ VBoxManage storageattach "${VM_NAME}" \
   --port 0 \
   --device 0 \
   --medium "${LINUX_ISO}"
+
+VBoxManage storageattach "${VM_NAME}" \
+  --storagectl "IDE" \
+  --type dvddrive \
+  --port 0 \
+  --device 1 \
+  --medium "${VM_BUILDER_ISO}"
 
 VBoxManage storagectl "${VM_NAME}" \
   --name "SATA" \
