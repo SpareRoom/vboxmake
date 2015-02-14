@@ -1,0 +1,163 @@
+#!/usr/bin/env perl
+
+use v5.10.1;
+
+use strict;
+use warnings FATAL => qw(all);
+
+use Data::Dumper;
+use Getopt::Long;
+use File::Spec::Functions qw(catfile splitpath splitdir);
+use File::Basename qw(basename);
+
+my %Opt = get_options();
+print Dumper(\%Opt);
+
+extract_from_iso(
+    $Opt{iso_file},
+    '/tmp',
+    '/images/pxeboot/initrd.img',
+    '/images/pxeboot/vmlinuz',
+);
+
+extract_from_targz(
+    $Opt{syslinux_file},
+    '/tmp',
+    'syslinux-4.07/core/pxelinux.0',
+);
+
+create_iso(
+    '/tmp/vboxmake.iso',
+    '/Users/mikeraynham/git_clones/virtualbox_base_box_builder/virtualbox/tftpboot/ks.cfg',
+);
+
+sub get_options {
+    my %opt = (
+        name          => 'basebox',
+        syslinux_file => catfile($ENV{HOME}, 'vboxmake', 'syslinux-4.07.tar.gz'),
+        tftp_dir      => catfile($ENV{HOME}, 'Library', 'VirtualBox', 'TFTP'),
+        xorriso       => '/usr/local/bin/xorriso',
+        xorrisofs     => '/usr/local/bin/xorrisofs',
+        vboxmanage    => '/usr/bin/VBoxManage',
+        vm_memory     => 1024,
+        vm_vram       => 8,
+        vm_cpus       => 2,
+        vm_hd_size    => 28610,
+    );
+
+    GetOptions(\%opt, squash_opts(
+        'name                          | n = s',
+        'iso_file      | iso-file      | i = s',
+        'syslinux_file | syslinux-file | s = s',
+        'tftp_dir      | tftp-dir      | t = s',
+        'vm_memory     | vm-memory     | m = i',
+        'vm_vram       | vm-vram       | r = i',
+        'vm_cpus       | vm-cpus       | c = i',
+        'vm_hd_size    | vm-hd-size    | h = i',
+        'vboxmanage                    | v = s',
+        'xorriso                       | x = s',
+        'force                         | f',
+    ));
+
+    check_path('iso_file',      $opt{iso_file},      'f');
+    check_path('syslinux_file', $opt{syslinux_file}, 'f');
+    check_path('tftp_dir',      $opt{tftp_dir},      'd');
+    check_path('xorriso',       $opt{xorriso},       'f', 'x');
+    check_path('xorrisofs',     $opt{xorrisofs},     'f', 'x');
+    check_path('vboxmanage',    $opt{vboxmanage},    'f', 'x');
+
+    return %opt;
+}
+
+sub squash_opts {
+    my @args = @_;
+    map {s/\s+//g; $_} @args;
+}
+
+sub check_path {
+    my $arg   = shift;
+    my $path  = shift;
+    my @tests = (qw(e r), @_);
+
+    die "'$arg' must be specified\n" unless defined $path;
+
+    my %map = (
+        'e' => sub {die "'$path' cannot be found\n"    unless -e $path}, 
+        'r' => sub {die "'$path' cannot be read\n"     unless -r $path}, 
+        'f' => sub {die "'$path' is not a file\n"      unless -f $path}, 
+        'd' => sub {die "'$path' is not a directory\n" unless -d $path}, 
+        'x' => sub {die "'$path' is not executable\n"  unless -x $path}, 
+    );
+
+    $map{$_}->() for @tests;
+}
+
+sub extract_from_iso {
+    my $iso   = shift;
+    my $dest  = shift;
+    my @paths = @_;
+
+    for my $path (@paths) {
+        my $basename = basename($path);
+
+        execute_command(
+            $Opt{xorriso},
+            qw(-osirrox on -indev),
+            $iso,
+            '-cpx',
+            $path,
+            catfile($dest, $basename),
+        );
+    }
+}
+
+sub extract_from_targz {
+    my $targz = shift;
+    my $dest  = shift;
+    my @paths = @_;
+
+    for my $path (@paths) {
+        my (undef, $dirs, $file) = splitpath($path);
+        my $dir_count = grep {length $_} splitdir($dirs);
+
+        my @args = (
+            '-C', $dest,
+            '-xvzf', $targz,
+        );
+
+        push @args, ('--strip-components', $dir_count)
+            if $dir_count;
+
+        execute_command(
+            'tar',
+            @args,
+            $path,
+        );
+    }
+}
+
+sub create_iso {
+    my $dest      = shift;
+    my @files     = @_;
+
+    execute_command(
+        $Opt{xorrisofs},
+        '-r',
+        '-V', q{"VBOX_MAKE"},
+        '-o', qq{"$dest"},
+        map {qq{"$_"}} @files,
+    );
+}
+
+sub execute_command {
+  my $cmd = join ' ', @_;
+  say $cmd;
+  my ($output, $status) = ($_ = qx{$cmd 2>&1}, $? >> 8);
+  return if $status eq "0";
+
+  die sprintf
+    "ERROR: The following command failed to execute correctly:\n\n" .
+    "$cmd\n\n" .
+    "The output was:\n\n" .
+    "$output\n\n";
+}
