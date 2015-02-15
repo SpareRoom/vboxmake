@@ -47,22 +47,22 @@ other Linux distros.  Patches and pull requests are welcome...
 
 - The built-in VirtualBox PXE-enabled DHCP server supplies a new VM with an
 IP address, and specifies the path to the bootloader file.  This path is in
-the format \`<vm name>.pxe\`, so there must be one file per VM.
+the format `<vm name>.pxe`, so there must be one file per VM.
 - Because VirtualBox uses [iPXE](http://ipxe.org/) firmware, we replace the
-standard \`pxelinux.0\` file with an [iPXE script](http://ipxe.org/scripting).
+standard `pxelinux.0` file with an [iPXE script](http://ipxe.org/scripting).
 The script sets the TFTP prefix to the name of the VM, thus allowing separate
 PXE configurations to be created for different VMs.  The script then passes
-the location of the real \`pxelinux.0\` bootloader file to iPXE.  \`pxelinux.0\`
-is obtained from the [Syslinux PXELINUX](http://www.syslinux.org/wiki/index.php/PXELINUX)
+the location of the real `pxelinux.0` bootloader file to iPXE.
+`pxelinux.0` is obtained from the [Syslinux PXELINUX](http://www.syslinux.org/wiki/index.php/PXELINUX)
 project.
-- The PXE boot process loads \`pxelinux.0\`, which in turn loads the syslinux
+- The PXE boot process loads `pxelinux.0`, which in turn loads the syslinux
 configuration menu file.  The config file provides the necessary kernel
-parameters, including the location of \`initrd.img\`, \`vmlinuz\` and the
+parameters, including the location of `initrd.img`, `vmlinuz` and the
 Kickstart configuration file.
 - As part of the build process, an ISO file is generated that contains the
 Kickstart configuration file.  This ISO is attached to the VM as a secondary
 DVD-ROM drive so that the boot process can load it.  This negates the need
-to either build a custom \`initrd.img\` (which is rather difficult on OS X),
+to either build a custom `initrd.img` (which is rather difficult on OS X),
 or to have the file available over HTTP.
 - Finally, the Kickstart configuration takes over, and installs the system.
 
@@ -190,7 +190,7 @@ or to have the file available over HTTP.
 
 ## xorriso
 
-xorriso is used to extract \`initrd.img\` and \`vmlinuz\` from the Linux
+xorriso is used to extract `initrd.img` and `vmlinuz` from the Linux
 distribution, and to create the ISO CD-ROM image that contains the Kickstart
 configuration file.  Installation is easy:
 
