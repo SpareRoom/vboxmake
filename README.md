@@ -35,6 +35,37 @@ vboxmake - Create VirtualBox VMs with unattended installation
      -h, --help            brief help message
      -m, --man             full documentation
 
+# DESCRIPTION
+
+`vboxmake` is a Perl script designed to help automate the production of
+VirtualBox base boxes.  It's a work in progress, and has been developed
+specifically for use on OS X.  It is currently only suitable for installing
+CentOS 7.0, but it probably wouldn't require much effort to make it install
+other Linux distros.  Patches and pull requests are welcome...
+
+## The build process
+
+- The built-in VirtualBox PXE-enabled DHCP server supplies a new VM with an
+IP address, and specifies the path to the bootloader file.  This path is in
+the format \`<vm name>.pxe\`, so there must be one file per VM.
+- Because VirtualBox uses [iPXE](http://ipxe.org/) firmware, we replace the
+standard \`pxelinux.0\` file with an [iPXE script](http://ipxe.org/scripting).
+The script sets the TFTP prefix to the name of the VM, thus allowing separate
+PXE configurations to be created for different VMs.  The script then passes
+the location of the real \`pxelinux.0\` bootloader file to iPXE.  \`pxelinux.0\`
+is obtained from the [Syslinux PXELINUX](http://www.syslinux.org/wiki/index.php/PXELINUX)
+project.
+- The PXE boot process loads \`pxelinux.0\`, which in turn loads the syslinux
+configuration menu file.  The config file provides the necessary kernel
+parameters, including the location of \`initrd.img\`, \`vmlinuz\` and the
+Kickstart configuration file.
+- As part of the build process, an ISO file is generated that contains the
+Kickstart configuration file.  This ISO is attached to the VM as a secondary
+DVD-ROM drive so that the boot process can load it.  This negates the need
+to either build a custom \`initrd.img\` (which is rather difficult on OS X),
+or to have the file available over HTTP.
+- Finally, the Kickstart configuration takes over, and installs the system.
+
 # OPTIONS
 
 - -l, --linux-iso
@@ -111,7 +142,7 @@ vboxmake - Create VirtualBox VMs with unattended installation
 
 - -u, --unattended
 
-    Default: `<vboxmake dir>/tftpboot/ks.cfg`
+    Default: `<vboxmake dir>/../config/ks.cfg`
 
     This is the unattended installation file that will be used to script the
     installation of your VM.  The default script is supplied for testing
@@ -119,7 +150,7 @@ vboxmake - Create VirtualBox VMs with unattended installation
 
 - -b, --boot-menu
 
-    Default: `<vboxmake dir>/tftpboot/boot_menu`
+    Default: `<vboxmake dir>/../config/boot_menu`
 
     This is the Syslinux configuration that is used to bootstrap the installation
     process.  The default file skips the menu altogether, and simply starts the
@@ -154,37 +185,6 @@ vboxmake - Create VirtualBox VMs with unattended installation
     Default: `/usr/local/bin/xorrisofs`
 
     This is the path to the `xorrisofs` executable.
-
-# DESCRIPTION
-
-`vboxmake` is a Perl script designed to help automate the production of
-VirtualBox base boxes.  It's a work in progress, and has been developed
-specifically for use on OS X.  It is currently only suitable for installing
-CentOS 7.0, but it probably wouldn't require much effort to make it install
-other Linux distros.  Patches and pull requests are welcome...
-
-## The build process
-
-- The built-in VirtualBox PXE-enabled DHCP server supplies a new VM with an
-IP address, and specifies the path to the bootloader file.  This path is in
-the format \`<vm name>.pxe\`, so there must be one file per VM.
-- Because VirtualBox uses [iPXE](http://ipxe.org/) firmware, we replace the
-standard \`pxelinux.0\` file with an [iPXE script](http://ipxe.org/scripting).
-The script sets the TFTP prefix to the name of the VM, thus allowing separate
-PXE configurations to be created for different VMs.  The script then passes
-the location of the real \`pxelinux.0\` bootloader file to iPXE.  \`pxelinux.0\`
-is obtained from the [Syslinux PXELINUX](http://www.syslinux.org/wiki/index.php/PXELINUX)
-project.
-- The PXE boot process loads \`pxelinux.0\`, which in turn loads the syslinux
-configuration menu file.  The config file provides the necessary kernel
-parameters, including the location of \`initrd.img\`, \`vmlinuz\` and the
-Kickstart configuration file.
-- As part of the build process, an ISO file is generated that contains the
-Kickstart configuration file.  This ISO is attached to the VM as a secondary
-DVD-ROM drive so that the boot process can load it.  This negates the need
-to either build a custom \`initrd.img\` (which is rather difficult on OS X),
-or to have the file available over HTTP.
-- Finally, the Kickstart configuration takes over, and installs the system.
 
 # PREREQUISITES
 
@@ -222,5 +222,4 @@ been unable to get later versions working correctly with VirtualBox.
 
 To update the README from this POD, install [Pod::Markdown](https://metacpan.org/pod/Pod::Markdown), and then:
 
-    perldoc -Tu ~/git_clones/virtualbox_base_box_builder/virtualbox/vboxmake | \
-      pod2markdown > README.md
+    perldoc -Tu bin/vboxmake | pod2markdown > README.md

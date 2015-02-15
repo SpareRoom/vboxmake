@@ -37,6 +37,55 @@ vboxmake - Create VirtualBox VMs with unattended installation
   -h, --help            brief help message
   -m, --man             full documentation
 
+=head1 DESCRIPTION
+
+C<vboxmake> is a Perl script designed to help automate the production of
+VirtualBox base boxes.  It's a work in progress, and has been developed
+specifically for use on OS X.  It is currently only suitable for installing
+CentOS 7.0, but it probably wouldn't require much effort to make it install
+other Linux distros.  Patches and pull requests are welcome...
+
+=head2 The build process
+
+=over
+
+=item
+
+The built-in VirtualBox PXE-enabled DHCP server supplies a new VM with an
+IP address, and specifies the path to the bootloader file.  This path is in
+the format `<vm name>.pxe`, so there must be one file per VM.
+
+=item
+
+Because VirtualBox uses L<iPXE|http://ipxe.org/> firmware, we replace the
+standard `pxelinux.0` file with an L<iPXE script|http://ipxe.org/scripting>.
+The script sets the TFTP prefix to the name of the VM, thus allowing separate
+PXE configurations to be created for different VMs.  The script then passes
+the location of the real `pxelinux.0` bootloader file to iPXE.  `pxelinux.0`
+is obtained from the L<Syslinux PXELINUX|http://www.syslinux.org/wiki/index.php/PXELINUX>
+project.
+
+=item
+
+The PXE boot process loads `pxelinux.0`, which in turn loads the syslinux
+configuration menu file.  The config file provides the necessary kernel
+parameters, including the location of `initrd.img`, `vmlinuz` and the
+Kickstart configuration file.
+
+=item
+
+As part of the build process, an ISO file is generated that contains the
+Kickstart configuration file.  This ISO is attached to the VM as a secondary
+DVD-ROM drive so that the boot process can load it.  This negates the need
+to either build a custom `initrd.img` (which is rather difficult on OS X),
+or to have the file available over HTTP.
+
+=item
+
+Finally, the Kickstart configuration takes over, and installs the system.
+
+=back
+
 =head1 OPTIONS
 
 =over
@@ -161,55 +210,6 @@ This is the path to the C<xorrisofs> executable.
 
 =back
 
-=head1 DESCRIPTION
-
-C<vboxmake> is a Perl script designed to help automate the production of
-VirtualBox base boxes.  It's a work in progress, and has been developed
-specifically for use on OS X.  It is currently only suitable for installing
-CentOS 7.0, but it probably wouldn't require much effort to make it install
-other Linux distros.  Patches and pull requests are welcome...
-
-=head2 The build process
-
-=over
-
-=item
-
-The built-in VirtualBox PXE-enabled DHCP server supplies a new VM with an
-IP address, and specifies the path to the bootloader file.  This path is in
-the format `<vm name>.pxe`, so there must be one file per VM.
-
-=item
-
-Because VirtualBox uses L<iPXE|http://ipxe.org/> firmware, we replace the
-standard `pxelinux.0` file with an L<iPXE script|http://ipxe.org/scripting>.
-The script sets the TFTP prefix to the name of the VM, thus allowing separate
-PXE configurations to be created for different VMs.  The script then passes
-the location of the real `pxelinux.0` bootloader file to iPXE.  `pxelinux.0`
-is obtained from the L<Syslinux PXELINUX|http://www.syslinux.org/wiki/index.php/PXELINUX>
-project.
-
-=item
-
-The PXE boot process loads `pxelinux.0`, which in turn loads the syslinux
-configuration menu file.  The config file provides the necessary kernel
-parameters, including the location of `initrd.img`, `vmlinuz` and the
-Kickstart configuration file.
-
-=item
-
-As part of the build process, an ISO file is generated that contains the
-Kickstart configuration file.  This ISO is attached to the VM as a secondary
-DVD-ROM drive so that the boot process can load it.  This negates the need
-to either build a custom `initrd.img` (which is rather difficult on OS X),
-or to have the file available over HTTP.
-
-=item
-
-Finally, the Kickstart configuration takes over, and installs the system.
-
-=back
-
 =head1 PREREQUISITES
 
 =head2 xorriso
@@ -242,13 +242,11 @@ It is highly recommended that Syslinux version 4.0.7 is used, as I have
 been unable to get later versions working correctly with VirtualBox.
 C<vboxmake> will attempt to extract C<pxelinux.0> from this .tar.gz file.
 
-
 =head1 NOTES
 
 To update the README from this POD, install L<Pod::Markdown>, and then:
 
- perldoc -Tu ~/git_clones/virtualbox_base_box_builder/virtualbox/vboxmake | \
-   pod2markdown > README.md
+ perldoc -Tu bin/vboxmake | pod2markdown > README.md
 
 =cut
 
