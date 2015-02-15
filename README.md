@@ -38,8 +38,11 @@ vboxmake - Create VirtualBox VMs with unattended installation
 # DESCRIPTION
 
 `vboxmake` is a Perl script designed to help automate the production of
-VirtualBox base boxes.  It's a work in progress, and has been developed
-specifically for use on OS X.  It is currently only suitable for installing
+VirtualBox base boxes.
+
+**ALPHA CODE ALERT:**  This script is a work in progress, and has been developed
+and tested only on OS X Yosemite.  It's interface and functionality will
+almost certainly change.  It is currently only suitable for installing
 CentOS 7.0, but it probably wouldn't require much effort to make it install
 other Linux distros.  Patches and pull requests are welcome...
 
