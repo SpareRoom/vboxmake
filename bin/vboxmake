@@ -1,0 +1,624 @@
+#!/usr/bin/env perl
+
+=head1 NAME
+
+vboxmake - Create VirtualBox VMs with unattended installation
+
+=head1 SYNOPSIS
+
+ vboxmake --linux-iso CentOS-7.0-1406-x86_64-Minimal.iso --vm-name basebox-centos-7
+
+ Options:
+
+  -l, --linux-iso       ISO image from which to install Linux
+  -i, --initrd          the path to initrd.img in `linux-iso`
+  -k, --vmlinuz         the path to vmlinuz in `linux-iso`
+
+  -s, --syslinux-targz  .tar.gz file from which to obtain pxelinux.0
+  -p, --pxelinux0       the path to pxelinux.0 in `syslinux-targz`
+
+  -n, --vm-name         the name to give to the VM
+  -c, --vm-cpus         the number of CPUs to give to the VM
+  -r, --vm-memory       the size of the VM RAM in MB
+  -o, --vm-ostype       the VirtualBox OS type for this VM
+      --vm-vram         the size of the VM VRAM in MB
+  -d, --vm-hd-size      the size of the VM hard disk in MB
+
+  -f, --force           overwrite existing VM of same name
+
+  -u, --unattended      the path to the unattended installation script
+  -b, --boot-menu       the path to the Syslinux boot configuration menu
+  
+  -t, --tftp-dir        the path to VirtualBox's TFTP directory
+  -v, --vboxmanage      the path to the VBoxManage executable
+  -x, --xorriso         the path to the xorriso executable
+      --xorrisofs       the path to the xorrisofs executable
+
+  -h, --help            brief help message
+  -m, --man             full documentation
+
+=head1 OPTIONS
+
+=over
+
+=item -l, --linux-iso
+
+C<vboxmake> will attempt to extract C<initrd.img> and C<vmlinuz> from this ISO
+image.  It will also attach this ISO image to the IDE storage controller for
+use as the installation media.
+
+=item -i, --initrd
+
+Default: C</images/pxeboot/initrd.img>
+
+This is the location of the C<initrd.img> file in the Linux ISO.
+
+=item -k, --vmlinuz
+
+Default: C</images/pxeboot/vmlinuz>
+
+This is the location of the C<vmlinuz> file in the Linux ISO.
+
+=item -s, --syslinux-targz
+
+Default: C<${HOME}/vboxmake/syslinux-4.07.tar.gz>
+
+C<vboxmake> will attempt to extract C<pxelinux.0> from this .tar.gz file.
+It is highly recommended that Syslinux version 4.0.7 is used, as I have
+been unable to get later versions working correctly with VirtualBox.
+
+=item -p, --pxelinux0
+
+Default: C<syslinux-4.07/core/pxelinux.0>
+
+This is the location of C<pxelinux.0> in the Syslinux .tar.gz file.
+
+=item -n, --vm-name
+
+Passed to C<VBoxManage createvm --name>.
+
+=item -c, --vm-cpus
+
+Default: C<2>
+
+Passed to C<VBoxManage modifyvm --cpus>
+
+=item -r, --vm-memory
+
+Default: C<1024>
+
+Passed to C<VBoxManage modifyvm --memory>
+
+=item -o, --vm-ostype
+
+Default: C<RedHat_64>
+
+Passed to C<VBoxManage modifyvm --ostype>
+
+=item --vm-vram
+
+Default: C<10>
+
+Passed to C<VBoxManage modifyvm --vram>
+
+=item -d, --vm-hd-size
+
+Default: C<28610>
+
+Passed to C<VBoxManage createhd --size>
+
+=item -f, --force
+
+If C<vboxmake> detects a VirtualBox VM with the same name as C<--vm-name>,
+it will abort.  Specifying C<--force> will cause the VM and any associated
+configuration files to be overwritten.
+
+=item -u, --unattended
+
+Default: C<< <vboxmake dir>/../config/ks.cfg >>
+
+This is the unattended installation file that will be used to script the
+installation of your VM.  The default script is supplied for testing
+purposes; you'll probably want to create your own.
+
+=item -b, --boot-menu
+
+Default: C<< <vboxmake dir>/../config/boot_menu >>
+
+This is the Syslinux configuration that is used to bootstrap the installation
+process.  The default file skips the menu altogether, and simply starts the
+installation.  You probably don't want to change this.
+
+=item -t, --tftp-dir
+
+Default: C<${HOME}/Library/VirtualBox/TFTP>
+
+When the first NIC is of type NAT, VirtualBox will look in the TFTP directory
+for a file with the name C<--vm-name> and the extension C<.pxe>.  For example,
+if the VM name is C<basebox>, the TFTP boot process would look for a file
+called C<basebox.pxe> in the TFTP directory.  C<vboxmake> creates the
+directory and the file automatically.  You should only need to change this
+setting if your installation of VirtualBox is using a different location
+for the TFTP directory.
+
+=item -v, --vboxmanage
+
+Default: C</usr/bin/VBoxManage>
+
+This is the path to the C<VBoxManage> executable.
+
+=item -x, --xorriso
+
+Default: C</usr/local/bin/xorriso>
+
+This is the path to the C<xorriso> executable.
+
+=item --xorrisofs
+
+Default: C</usr/local/bin/xorrisofs>
+
+This is the path to the C<xorrisofs> executable.
+
+=back
+
+=head1 DESCRIPTION
+
+C<vboxmake> is a Perl script designed to help automate the production of
+VirtualBox base boxes.  It's a work in progress, and has been developed
+specifically for use on OS X.  It is currently only suitable for installing
+CentOS 7.0, but it probably wouldn't require much effort to make it install
+other Linux distros.  Patches and pull requests are welcome...
+
+=head2 The build process
+
+=over
+
+=item
+
+The built-in VirtualBox PXE-enabled DHCP server supplies a new VM with an
+IP address, and specifies the path to the bootloader file.  This path is in
+the format `<vm name>.pxe`, so there must be one file per VM.
+
+=item
+
+Because VirtualBox uses L<iPXE|http://ipxe.org/> firmware, we replace the
+standard `pxelinux.0` file with an L<iPXE script|http://ipxe.org/scripting>.
+The script sets the TFTP prefix to the name of the VM, thus allowing separate
+PXE configurations to be created for different VMs.  The script then passes
+the location of the real `pxelinux.0` bootloader file to iPXE.  `pxelinux.0`
+is obtained from the L<Syslinux PXELINUX|http://www.syslinux.org/wiki/index.php/PXELINUX>
+project.
+
+=item
+
+The PXE boot process loads `pxelinux.0`, which in turn loads the syslinux
+configuration menu file.  The config file provides the necessary kernel
+parameters, including the location of `initrd.img`, `vmlinuz` and the
+Kickstart configuration file.
+
+=item
+
+As part of the build process, an ISO file is generated that contains the
+Kickstart configuration file.  This ISO is attached to the VM as a secondary
+DVD-ROM drive so that the boot process can load it.  This negates the need
+to either build a custom `initrd.img` (which is rather difficult on OS X),
+or to have the file available over HTTP.
+
+=item
+
+Finally, the Kickstart configuration takes over, and installs the system.
+
+=back
+
+=head1 PREREQUISITES
+
+=head2 xorriso
+
+xorriso is used to extract `initrd.img` and `vmlinuz` from the Linux
+distribution, and to create the ISO CD-ROM image that contains the Kickstart
+configuration file.  Installation is easy:
+
+ cd /tmp
+ curl -O http://www.gnu.org/software/xorriso/xorriso-1.3.9.tar.gz
+
+ tar xvzf xorriso-1.3.9.tar.gz
+ cd xorriso-1.3.9
+
+ ./configure
+ make
+ sudo make install
+
+=head2 Linux installation ISO
+
+C<vboxmake> has so far only been tested with CentOS 7.0 minimal.
+
+Download a copy of the installation ISO, and place it somewhere handy.
+There's no need to manually extract anything from the ISO.
+
+=head2 Syslinux
+
+C<vboxmake> needs a copy of C<pxelinux.0> from the Syslinux PXELINUX project.
+It is highly recommended that Syslinux version 4.0.7 is used, as I have
+been unable to get later versions working correctly with VirtualBox.
+C<vboxmake> will attempt to extract C<pxelinux.0> from this .tar.gz file.
+
+
+=head1 NOTES
+
+To update the README from this POD, install L<Pod::Markdown>, and then:
+
+ perldoc -Tu ~/git_clones/virtualbox_base_box_builder/virtualbox/vboxmake | \
+   pod2markdown > README.md
+
+=cut
+
+use v5.10.1;
+
+use strict;
+use warnings FATAL => qw(all);
+
+use File::Basename qw(basename dirname);
+use File::Copy qw(copy);
+use File::Path qw(make_path);
+use File::Spec::Functions qw(catfile catdir splitpath splitdir);
+use Getopt::Long;
+use Pod::Usage;
+
+my %Opt = get_options();
+
+check_options();
+create_ipxe_boot();
+
+extract_from_targz(
+    $Opt{syslinux_targz},
+    get_path_for('vm_tftp_dir'),
+    $Opt{pxelinux0},
+);
+
+extract_from_iso(
+    $Opt{linux_iso},
+    get_path_for('vm_tftp_dir'),
+    $Opt{initrd},
+    $Opt{vmlinuz},
+);
+
+create_iso(
+    get_path_for('unattended_iso'),
+    $Opt{unattended},
+);
+
+create_pxelinux_cfg_file();
+create_vm();
+
+sub get_options {
+    my %opt = (
+        boot_menu      => catfile(dirname(__FILE__), '..', 'config', 'boot_menu'),
+        initrd         => '/images/pxeboot/initrd.img',
+        pxelinux0      => 'syslinux-4.07/core/pxelinux.0',
+        syslinux_targz => catfile($ENV{HOME}, 'vboxmake', 'syslinux-4.07.tar.gz'),
+        tftp_dir       => catfile($ENV{HOME}, 'Library', 'VirtualBox', 'TFTP'),
+        unattended     => catfile(dirname(__FILE__), '..', 'config', 'ks.cfg'),
+        vboxmanage     => '/usr/bin/VBoxManage',
+        vm_cpus        => 2,
+        vm_hd_size     => 28610,
+        vm_memory      => 1024,
+        vm_ostype      => 'RedHat_64',
+        vm_vram        => 10,
+        vmlinuz        => '/images/pxeboot/vmlinuz',
+        xorriso        => '/usr/local/bin/xorriso',
+        xorrisofs      => '/usr/local/bin/xorrisofs',
+    );
+
+    GetOptions(\%opt, squash_opts(
+        'boot_menu      | boot-menu     | b = s',
+        'force                          | f',
+        'help                           | h',
+        'initrd                         | i = s',
+        'linux_iso      | linux-iso     | l = s',
+        'man                            | m',
+        'pxelinux0                      | p = s',
+        'syslinux_targz | syslinux-file | s = s',
+        'tftp_dir       | tftp-dir      | t = s',
+        'unattended                     | u = s',
+        'vboxmanage                     | v = s',
+        'vm_cpus        | vm-cpus       | c = i',
+        'vm_hd_size     | vm-hd-size    | d = i',
+        'vm_memory      | vm-memory     | r = i',
+        'vm_name        | vm-name       | n = s',
+        'vm_ostype      | vm-ostype     | o = s',
+        'vm_vram        | vm-vram           = i',
+        'vmlinuz                        | k = s',
+        'xorriso                        | x = s',
+        'xorrisofs                          = s',
+    ));
+
+    pod2usage(-verbose => 0), exit if $opt{help};
+    pod2usage(-verbose => 2), exit if $opt{man};
+
+    return %opt;
+}
+
+sub check_options {
+
+    $Opt{vm_name} // die "'vm_name' must be specified\n";
+
+    check_path('linux_iso',      $Opt{linux_iso},      'f');
+    check_path('syslinux_targz', $Opt{syslinux_targz}, 'f');
+    check_path('unattended',     $Opt{unattended},     'f');
+    check_path('vboxmanage',     $Opt{vboxmanage},     'f', 'x');
+    check_path('xorriso',        $Opt{xorriso},        'f', 'x');
+    check_path('xorrisofs',      $Opt{xorrisofs},      'f', 'x');
+}
+
+sub squash_opts {
+    my @args = @_;
+    map {s/\s+//g; $_} @args;
+}
+
+sub check_path {
+    my $arg   = shift;
+    my $path  = shift;
+    my @tests = (qw(e r), @_);
+
+    die "'$arg' must be specified\n" unless defined $path;
+
+    my %map = (
+        'e' => sub {die "'$path' cannot be found\n"    unless -e $path}, 
+        'r' => sub {die "'$path' cannot be read\n"     unless -r $path}, 
+        'f' => sub {die "'$path' is not a file\n"      unless -f $path}, 
+        'd' => sub {die "'$path' is not a directory\n" unless -d $path}, 
+        'x' => sub {die "'$path' is not executable\n"  unless -x $path}, 
+    );
+
+    $map{$_}->() for @tests;
+}
+
+sub get_path_for {
+    my $object = shift;
+
+    my %map = (
+        tftp_dir          => $Opt{tftp_dir},
+        vm_tftp_dir       => catdir($Opt{tftp_dir}, $Opt{vm_name}),
+        ipxe_boot_file    => catfile($Opt{tftp_dir}, "$Opt{vm_name}.pxe"),
+        pxelinux0_file    => catfile($Opt{vm_name}, 'pxelinux.0'),
+        pxelinux_cfg_file => catfile($Opt{tftp_dir}, $Opt{vm_name}, 'pxelinux.cfg', 'default'),
+        unattended_iso    => catfile($Opt{tftp_dir}, $Opt{vm_name}, 'unattended.iso'),
+    );
+
+    exists $map{$object} || die "A path for '$object' does not exist";
+    $map{$object};
+}
+
+sub create_ipxe_boot {
+    my $tftp_dir       = get_path_for('tftp_dir');
+    my $ipxe_boot_file = get_path_for('ipxe_boot_file');
+    my $pxelinux0_file = get_path_for('pxelinux0_file');
+
+    make_path($tftp_dir);
+
+    open my $fh, '>', $ipxe_boot_file
+        or die "Cannot open '$ipxe_boot_file': $!\n";
+
+    print $fh "#!ipxe\n";
+    print $fh "set 210:string $Opt{vm_name}/\n";
+    print $fh "chain $pxelinux0_file\n";
+
+    close $fh;
+}
+
+sub extract_from_iso {
+    my $iso   = shift;
+    my $dest  = shift;
+    my @paths = @_;
+
+    for my $path (@paths) {
+        my $basename = basename($path);
+
+        execute_command(
+            $Opt{xorriso},
+            qw(-osirrox on -indev),
+            $iso,
+            '-cpx',
+            $path,
+            catfile($dest, $basename),
+        );
+    }
+}
+
+sub extract_from_targz {
+    my $targz = shift;
+    my $dest  = shift;
+    my @paths = @_;
+
+    for my $path (@paths) {
+        my (undef, $dirs, $file) = splitpath($path);
+        my $dir_count = grep {length $_} splitdir($dirs);
+
+        my @args = (
+            '-C', $dest,
+            '-xvzf', $targz,
+        );
+
+        push @args, ('--strip-components', $dir_count)
+            if $dir_count;
+
+        execute_command(
+            'tar',
+            @args,
+            $path,
+        );
+    }
+}
+
+sub create_iso {
+    my $dest  = shift;
+    my @files = @_;
+
+    execute_command(
+        $Opt{xorrisofs},
+        '-r',
+        '-V', q{"VBOX_MAKE"},
+        '-o', qq{"$dest"},
+        map {qq{"$_"}} @files,
+    );
+}
+
+sub create_pxelinux_cfg_file {
+    my $pxelinux_cfg_file = get_path_for('pxelinux_cfg_file');
+    say $pxelinux_cfg_file;
+    make_path(dirname($pxelinux_cfg_file));
+    copy($Opt{boot_menu}, $pxelinux_cfg_file);
+}
+
+sub create_vm {
+
+    if (vbox_files_exist()) {
+        !$Opt{force}
+            && die "'$Opt{vm_name}' already exists, use --force to delete\n";
+
+        vboxmanage(
+            'unregistervm',
+            delete => undef,
+        );
+    }
+
+    vboxmanage(
+        'createvm',
+        name     => $Opt{vm_name},
+        ostype   => $Opt{vm_ostype},
+        register => undef,
+    );
+
+    vboxmanage(
+        'modifyvm',
+        audio        => 'none',
+        boot1        => 'disk',
+        boot2        => 'net',
+        boot3        => 'dvd',
+        boot4        => 'none',
+        cpus         => $Opt{vm_cpus},
+        hwvirtex     => 'on',
+        ioapic       => 'on',
+        memory       => $Opt{vm_memory},
+        nestedpaging => 'on',
+        nic1         => 'nat',
+        nictype1     => '82540EM',
+        pae          => 'on',
+        rtcuseutc    => 'on',
+        usb          => 'off',
+        vram         => $Opt{vm_vram},
+        vtxvpid      => 'on',
+    );
+
+    vboxmanage(
+        'storagectl',
+        add         => 'ide',
+        bootable    => 'on',
+        controller  => 'ICH6',
+        hostiocache => 'on',
+        name        => 'IDE',
+    );
+
+    vboxmanage(
+        'storageattach',
+        device     => 0,
+        medium     => $Opt{linux_iso},
+        port       => 0,
+        storagectl => 'IDE',
+        type       => 'dvddrive',
+    );
+
+    vboxmanage(
+        'storageattach',
+        device     => 1,
+        medium     => get_path_for('unattended_iso'),
+        port       => 0,
+        storagectl => 'IDE',
+        type       => 'dvddrive',
+    );
+
+    vboxmanage(
+        'storagectl',
+        name        => 'SATA',
+        add         => 'sata',
+        controller  => 'IntelAhci',
+        hostiocache => 'on',
+        bootable    => 'on',
+    );
+
+    my $vm_hd = catfile(vm_dir(), "$Opt{vm_name}.vdi");
+
+    vboxmanage(
+        'createhd',
+        filename => $vm_hd,
+        size     => $Opt{vm_hd_size},
+        format   => 'VDI',
+        variant  => 'Standard',
+    );
+
+    vboxmanage(
+        'storageattach',
+        device     => 0,
+        medium     => $vm_hd,
+        port       => 0,
+        storagectl => 'SATA',
+        type       => 'hdd',
+    );
+}
+
+sub vm_dir {
+    my (undef, $output) = vboxmanage(
+        'showvminfo',
+        machinereadable => undef,
+    );
+
+    my ($cfg)      = grep { /^CfgFile/ } split /\n/, $output;
+    my ($cfg_file) = $cfg =~ m/^CfgFile="([^"]+)"$/;
+    
+    dirname $cfg_file;
+}
+
+sub vbox_files_exist {
+    eval { vboxmanage('showvminfo') };
+    return 1 unless $@;
+    return 0 if $@ =~ /VBOX_E_OBJECT_NOT_FOUND/;
+    die $@;
+}
+
+sub vboxmanage {
+    my $vb_cmd = shift;
+    my %args   = @_;
+    my @no_name = qw(
+        createvm
+        createhd
+    );
+
+    my @vb_args = (
+        $Opt{vboxmanage},
+        $vb_cmd,
+    );
+
+    push @vb_args, qq{"$Opt{vm_name}"} unless grep { $_ eq $vb_cmd } @no_name;
+
+    if (%args) {
+        push @vb_args, map {(
+            "--$_",
+            defined $args{$_} ? qq{"$args{$_}"} : ()
+        )} sort keys %args;
+    }
+
+    execute_command(@vb_args);
+}
+
+sub execute_command {
+    my $cmd = join ' ', @_;
+    say $cmd;
+    my ($output, $status) = ($_ = qx{$cmd 2>&1}, $? >> 8);
+    return ($status, $output) if $status eq "0";
+
+    die sprintf
+        "ERROR: The following command failed with status code '$status':\n\n" .
+        "$cmd\n\n" .
+        "The output was:\n\n" .
+        "$output\n\n";
+}

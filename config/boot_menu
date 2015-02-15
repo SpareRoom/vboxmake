@@ -1,0 +1,4 @@
+default install
+LABEL install
+    KERNEL vmlinuz
+    APPEND initrd=initrd.img ip=dhcp ks=cdrom:sr1:/ks.cfg
