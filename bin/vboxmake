@@ -263,36 +263,52 @@ use File::Basename qw(basename dirname);
 use File::Copy qw(copy);
 use File::Path qw(make_path remove_tree);
 use File::Spec::Functions qw(catfile catdir splitpath splitdir);
+use File::Temp;
 use Getopt::Long;
 use Pod::Usage;
 
 my %Opt = get_options();
 
-check_options();
+process();
 
-create_paths();
-create_ipxe_boot();
+sub process {
+    check_options();
+    create_paths();
+    create_ipxe_boot();
 
-extract_from_targz(
-    $Opt{syslinux_targz},
-    get_path_for('vm_tftp_dir'),
-    $Opt{pxelinux0},
-);
+    extract_from_targz(
+        $Opt{syslinux_targz},
+        get_path_for('vm_tftp_dir'),
+        $Opt{pxelinux0},
+    );
 
-extract_from_iso(
-    $Opt{linux_iso},
-    get_path_for('vm_tftp_dir'),
-    $Opt{initrd},
-    $Opt{vmlinuz},
-);
+    extract_from_iso(
+        $Opt{linux_iso},
+        get_path_for('vm_tftp_dir'),
+        $Opt{initrd},
+        $Opt{vmlinuz},
+    );
 
-create_iso(
-    get_path_for('unattended_iso'),
-    @{$Opt{unattended}},
-);
+    my $tmp_dir = File::Temp->newdir;
 
-create_pxelinux_cfg_file(basename $Opt{unattended}->[0]);
-create_vm();
+    copy_unattended(
+        $tmp_dir,
+        @{$Opt{unattended}}
+    );
+
+    copy_vboxguest(
+        $tmp_dir,
+        $Opt{vboxguest}
+    );
+
+    create_iso(
+        $tmp_dir,
+        get_path_for('unattended_iso'),
+    );
+
+    create_pxelinux_cfg_file(basename $Opt{unattended}->[0]);
+    create_vm();
+}
 
 sub get_options {
     my %opt = (
@@ -342,7 +358,6 @@ sub get_options {
 }
 
 sub check_options {
-
     $Opt{vm_name} // die "'vm_name' must be specified\n";
 
     check_path('linux_iso',      $Opt{linux_iso},      'f');
@@ -457,16 +472,39 @@ sub extract_from_targz {
     }
 }
 
+sub copy_unattended {
+    my $tmp_dir        = shift;
+    my $unattended_dir = catdir($tmp_dir, 'unattended');
+
+    mkdir $unattended_dir;
+    copy($_, $unattended_dir) for @_;
+}
+
+sub copy_vboxguest {
+    my $tmp_dir   = shift;
+    my $vboxguest = shift;
+
+    return unless $vboxguest;
+
+    execute_command(
+        $Opt{xorriso},
+        qw(-osirrox on),
+        '-indev', $vboxguest,
+        '-cpx', '/VBoxLinuxAdditions.run',
+        catfile($tmp_dir, 'vboxguest', 'VBoxLinuxAdditions.run'),
+    );
+}
+
 sub create_iso {
-    my $dest  = shift;
-    my @files = @_;
+    my $tmp_dir = shift;
+    my $dest    = shift;
 
     execute_command(
         $Opt{xorrisofs},
         '-r',
         '-V', q{"VBOX_MAKE"},
         '-o', qq{"$dest"},
-        map {qq{"$_"}} @files,
+        qq{"$tmp_dir"},
     );
 }
 
@@ -478,7 +516,7 @@ sub create_pxelinux_cfg_file {
         'default install',
         'LABEL install',
         'KERNEL vmlinuz',
-        "APPEND initrd=initrd.img ip=dhcp ks=cdrom:sr1:/$unattended",
+        "APPEND initrd=initrd.img ip=dhcp ks=cdrom:sr1:/unattended/$unattended",
     );
 }
 
@@ -575,6 +613,10 @@ sub create_vm {
         port       => 0,
         storagectl => 'SATA',
         type       => 'hdd',
+    );
+
+    vboxmanage(
+        'startvm',
     );
 }
 
