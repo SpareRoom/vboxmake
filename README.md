@@ -4,7 +4,10 @@ vboxmake - Create VirtualBox VMs with unattended installation
 
 # SYNOPSIS
 
-    vboxmake --linux-iso CentOS-7.0-1406-x86_64-Minimal.iso --vm-name basebox-centos-7
+    vboxmake \
+      --linux-iso CentOS-7.0-1406-x86_64-Everything.iso \
+      --unattended=config/ks_vagrant.cfg \
+      --vm-name basebox-centos-7
 
     Options:
 
@@ -15,6 +18,8 @@ vboxmake - Create VirtualBox VMs with unattended installation
      -s, --syslinux-targz  .tar.gz file from which to obtain pxelinux.0
      -p, --pxelinux0       the path to pxelinux.0 in `syslinux-targz`
 
+     -u, --unattended      the path to the unattended installation script
+
      -n, --vm-name         the name to give to the VM
      -c, --vm-cpus         the number of CPUs to give to the VM
      -r, --vm-memory       the size of the VM RAM in MB
@@ -24,9 +29,6 @@ vboxmake - Create VirtualBox VMs with unattended installation
 
      -f, --force           overwrite existing VM of same name
 
-     -u, --unattended      the path to the unattended installation script
-     -b, --boot-menu       the path to the Syslinux boot configuration menu
-     
      -t, --tftp-dir        the path to VirtualBox's TFTP directory
      -v, --vboxmanage      the path to the VBoxManage executable
      -x, --xorriso         the path to the xorriso executable
@@ -73,6 +75,8 @@ or to have the file available over HTTP.
 
 - -l, --linux-iso
 
+    **Required.**
+
     `vboxmake` will attempt to extract `initrd.img` and `vmlinuz` from this ISO
     image.  It will also attach this ISO image to the IDE storage controller for
     use as the installation media.
@@ -103,7 +107,19 @@ or to have the file available over HTTP.
 
     This is the location of `pxelinux.0` in the Syslinux .tar.gz file.
 
+- -u, --unattended
+
+    **Required.**
+
+    This is the unattended installation file that will be used to script the
+    installation of your VM.  This option may be specified multiple times:
+    each script will be added to the **root** of the unattended ISO file, and
+    the first file specified will be used as the initial configuration file.
+    This allows configuration files to include other configuration files.
+
 - -n, --vm-name
+
+    **Required.**
 
     Passed to `VBoxManage createvm --name`.
 
@@ -142,22 +158,6 @@ or to have the file available over HTTP.
     If `vboxmake` detects a VirtualBox VM with the same name as `--vm-name`,
     it will abort.  Specifying `--force` will cause the VM and any associated
     configuration files to be overwritten.
-
-- -u, --unattended
-
-    Default: `<vboxmake dir>/../config/ks.cfg`
-
-    This is the unattended installation file that will be used to script the
-    installation of your VM.  The default script is supplied for testing
-    purposes; you'll probably want to create your own.
-
-- -b, --boot-menu
-
-    Default: `<vboxmake dir>/../config/boot_menu`
-
-    This is the Syslinux configuration that is used to bootstrap the installation
-    process.  The default file skips the menu altogether, and simply starts the
-    installation.  You probably don't want to change this.
 
 - -t, --tftp-dir
 

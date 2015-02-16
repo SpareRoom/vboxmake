@@ -6,7 +6,10 @@ vboxmake - Create VirtualBox VMs with unattended installation
 
 =head1 SYNOPSIS
 
- vboxmake --linux-iso CentOS-7.0-1406-x86_64-Minimal.iso --vm-name basebox-centos-7
+ vboxmake \
+   --linux-iso CentOS-7.0-1406-x86_64-Everything.iso \
+   --unattended=config/ks_vagrant.cfg \
+   --vm-name basebox-centos-7
 
  Options:
 
@@ -17,6 +20,8 @@ vboxmake - Create VirtualBox VMs with unattended installation
   -s, --syslinux-targz  .tar.gz file from which to obtain pxelinux.0
   -p, --pxelinux0       the path to pxelinux.0 in `syslinux-targz`
 
+  -u, --unattended      the path to the unattended installation script
+
   -n, --vm-name         the name to give to the VM
   -c, --vm-cpus         the number of CPUs to give to the VM
   -r, --vm-memory       the size of the VM RAM in MB
@@ -26,9 +31,6 @@ vboxmake - Create VirtualBox VMs with unattended installation
 
   -f, --force           overwrite existing VM of same name
 
-  -u, --unattended      the path to the unattended installation script
-  -b, --boot-menu       the path to the Syslinux boot configuration menu
-  
   -t, --tftp-dir        the path to VirtualBox's TFTP directory
   -v, --vboxmanage      the path to the VBoxManage executable
   -x, --xorriso         the path to the xorriso executable
@@ -96,6 +98,8 @@ Finally, the Kickstart configuration takes over, and installs the system.
 
 =item -l, --linux-iso
 
+B<Required.>
+
 C<vboxmake> will attempt to extract C<initrd.img> and C<vmlinuz> from this ISO
 image.  It will also attach this ISO image to the IDE storage controller for
 use as the installation media.
@@ -126,7 +130,19 @@ Default: C<syslinux-4.07/core/pxelinux.0>
 
 This is the location of C<pxelinux.0> in the Syslinux .tar.gz file.
 
+=item -u, --unattended
+
+B<Required.>
+
+This is the unattended installation file that will be used to script the
+installation of your VM.  This option may be specified multiple times:
+each script will be added to the B<root> of the unattended ISO file, and
+the first file specified will be used as the initial configuration file.
+This allows configuration files to include other configuration files.
+
 =item -n, --vm-name
+
+B<Required.>
 
 Passed to C<VBoxManage createvm --name>.
 
@@ -165,22 +181,6 @@ Passed to C<VBoxManage createhd --size>
 If C<vboxmake> detects a VirtualBox VM with the same name as C<--vm-name>,
 it will abort.  Specifying C<--force> will cause the VM and any associated
 configuration files to be overwritten.
-
-=item -u, --unattended
-
-Default: C<< <vboxmake dir>/../config/ks.cfg >>
-
-This is the unattended installation file that will be used to script the
-installation of your VM.  The default script is supplied for testing
-purposes; you'll probably want to create your own.
-
-=item -b, --boot-menu
-
-Default: C<< <vboxmake dir>/../config/boot_menu >>
-
-This is the Syslinux configuration that is used to bootstrap the installation
-process.  The default file skips the menu altogether, and simply starts the
-installation.  You probably don't want to change this.
 
 =item -t, --tftp-dir
 
@@ -261,7 +261,7 @@ use warnings FATAL => qw(all);
 
 use File::Basename qw(basename dirname);
 use File::Copy qw(copy);
-use File::Path qw(make_path);
+use File::Path qw(make_path remove_tree);
 use File::Spec::Functions qw(catfile catdir splitpath splitdir);
 use Getopt::Long;
 use Pod::Usage;
@@ -269,6 +269,8 @@ use Pod::Usage;
 my %Opt = get_options();
 
 check_options();
+
+create_paths();
 create_ipxe_boot();
 
 extract_from_targz(
@@ -286,21 +288,20 @@ extract_from_iso(
 
 create_iso(
     get_path_for('unattended_iso'),
-    $Opt{unattended},
+    @{$Opt{unattended}},
 );
 
-create_pxelinux_cfg_file();
+create_pxelinux_cfg_file(basename $Opt{unattended}->[0]);
 create_vm();
 
 sub get_options {
     my %opt = (
-        boot_menu      => catfile(dirname(__FILE__), '..', 'config', 'boot_menu'),
         initrd         => '/images/pxeboot/initrd.img',
         pxelinux0      => 'syslinux-4.07/core/pxelinux.0',
         syslinux_targz => catfile($ENV{HOME}, 'vboxmake', 'syslinux-4.07.tar.gz'),
         tftp_dir       => catfile($ENV{HOME}, 'Library', 'VirtualBox', 'TFTP'),
-        unattended     => catfile(dirname(__FILE__), '..', 'config', 'ks.cfg'),
         vboxmanage     => '/usr/bin/VBoxManage',
+        vboxguest      => '/Applications/VirtualBox.app/Contents/MacOS/VBoxGuestAdditions.iso',
         vm_cpus        => 2,
         vm_hd_size     => 28610,
         vm_memory      => 1024,
@@ -312,7 +313,6 @@ sub get_options {
     );
 
     GetOptions(\%opt, squash_opts(
-        'boot_menu      | boot-menu     | b = s',
         'force                          | f',
         'help                           | h',
         'initrd                         | i = s',
@@ -321,8 +321,9 @@ sub get_options {
         'pxelinux0                      | p = s',
         'syslinux_targz | syslinux-file | s = s',
         'tftp_dir       | tftp-dir      | t = s',
-        'unattended                     | u = s',
+        'unattended                     | u = s@',
         'vboxmanage                     | v = s',
+        'vboxguest                      | g = s',
         'vm_cpus        | vm-cpus       | c = i',
         'vm_hd_size     | vm-hd-size    | d = i',
         'vm_memory      | vm-memory     | r = i',
@@ -346,10 +347,11 @@ sub check_options {
 
     check_path('linux_iso',      $Opt{linux_iso},      'f');
     check_path('syslinux_targz', $Opt{syslinux_targz}, 'f');
-    check_path('unattended',     $Opt{unattended},     'f');
     check_path('vboxmanage',     $Opt{vboxmanage},     'f', 'x');
     check_path('xorriso',        $Opt{xorriso},        'f', 'x');
     check_path('xorrisofs',      $Opt{xorrisofs},      'f', 'x');
+    check_path('unattended',     $_,                   'f')
+        for @{$Opt{unattended}};
 }
 
 sub squash_opts {
@@ -379,10 +381,10 @@ sub get_path_for {
     my $object = shift;
 
     my %map = (
-        tftp_dir          => $Opt{tftp_dir},
         vm_tftp_dir       => catdir($Opt{tftp_dir}, $Opt{vm_name}),
         ipxe_boot_file    => catfile($Opt{tftp_dir}, "$Opt{vm_name}.pxe"),
         pxelinux0_file    => catfile($Opt{vm_name}, 'pxelinux.0'),
+        pxelinux_cfg_dir  => catdir($Opt{tftp_dir}, $Opt{vm_name}, 'pxelinux.cfg'),
         pxelinux_cfg_file => catfile($Opt{tftp_dir}, $Opt{vm_name}, 'pxelinux.cfg', 'default'),
         unattended_iso    => catfile($Opt{tftp_dir}, $Opt{vm_name}, 'unattended.iso'),
     );
@@ -391,12 +393,15 @@ sub get_path_for {
     $map{$object};
 }
 
+sub create_paths {
+    remove_tree(get_path_for('vm_tftp_dir'));
+    unlink get_path_for('ipxe_boot_file');
+    make_path(get_path_for('pxelinux_cfg_dir'));
+}
+
 sub create_ipxe_boot {
-    my $tftp_dir       = get_path_for('tftp_dir');
     my $ipxe_boot_file = get_path_for('ipxe_boot_file');
     my $pxelinux0_file = get_path_for('pxelinux0_file');
-
-    make_path($tftp_dir);
 
     open my $fh, '>', $ipxe_boot_file
         or die "Cannot open '$ipxe_boot_file': $!\n";
@@ -466,10 +471,15 @@ sub create_iso {
 }
 
 sub create_pxelinux_cfg_file {
-    my $pxelinux_cfg_file = get_path_for('pxelinux_cfg_file');
-    say $pxelinux_cfg_file;
-    make_path(dirname($pxelinux_cfg_file));
-    copy($Opt{boot_menu}, $pxelinux_cfg_file);
+    my $unattended = shift;
+
+    write_file(
+        get_path_for('pxelinux_cfg_file'),
+        'default install',
+        'LABEL install',
+        'KERNEL vmlinuz',
+        "APPEND initrd=initrd.img ip=dhcp ks=cdrom:sr1:/$unattended",
+    );
 }
 
 sub create_vm {
@@ -623,4 +633,15 @@ sub execute_command {
         "$cmd\n\n" .
         "The output was:\n\n" .
         "$output\n\n";
+}
+
+sub write_file {
+    my $file  = shift;
+    my @lines = @_;
+
+    open my $fh, '>', $file or die "Cannot open '$file': $!\n";
+    for my $line (@lines) {
+        print $fh "$line\n";
+    }
+    close $fh;
 }
