@@ -262,6 +262,8 @@ This quick start guide will take you through the steps necessary to build a
 minimal CentOS 7.0 VirtualBox VM, from which you will then create a Vagrant
 base box.
 
+=over
+
 =item vboxmake directory
 
 Create a C<vboxmake> directory in which to put some downloads:

@@ -288,11 +288,3 @@ base box.
 To update the README from this POD, install [Pod::Markdown](https://metacpan.org/pod/Pod::Markdown), and then:
 
     perldoc -Tu bin/vboxmake | pod2markdown > README.md
-
-# POD ERRORS
-
-Hey! **The above document had some coding errors, which are explained below:**
-
-- Around line 263:
-
-    '=item' outside of any '=over'
