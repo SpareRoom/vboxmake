@@ -6,7 +6,8 @@ vboxmake - Create VirtualBox VMs with unattended installation
 
     vboxmake \
       --linux-iso CentOS-7.0-1406-x86_64-Everything.iso \
-      --unattended=config/ks_vagrant.cfg \
+      --unattended unattended/ks.cfg \
+      --unattended unattended/custom.sh \
       --vm-name basebox-centos-7
 
     Options:
@@ -31,6 +32,7 @@ vboxmake - Create VirtualBox VMs with unattended installation
 
      -t, --tftp-dir        the path to VirtualBox's TFTP directory
      -v, --vboxmanage      the path to the VBoxManage executable
+     -g, --vboxguest       the path to the VBoxGuestAdditions.iso file
      -x, --xorriso         the path to the xorriso executable
          --xorrisofs       the path to the xorrisofs executable
 
@@ -176,6 +178,14 @@ or to have the file available over HTTP.
     Default: `/usr/bin/VBoxManage`
 
     This is the path to the `VBoxManage` executable.
+
+- -g, --vboxguest
+
+    Default: `/Applications/VirtualBox.app/Contents/MacOS/VBoxGuestAdditions.iso`
+
+    This is the path to the `VBoxGuestAdditions.iso` file from which
+    `VBoxLinuxAdditions.run` will be extracted.  The extracted file will then
+    be added to `unattended.iso` under the `/vboxguest` directory.
 
 - -x, --xorriso
 
