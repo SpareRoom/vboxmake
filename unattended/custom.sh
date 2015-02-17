@@ -1,5 +1,7 @@
 #!/bin/env bash
 
+useradd -p $(openssl passwd -1 "vagrant") vagrant
+
 # https://github.com/mitchellh/vagrant/tree/master/keys
 mkdir -p /home/vagrant/.ssh
 cat <<'EOF' > /home/vagrant/.ssh/authorized_keys
@@ -11,5 +13,6 @@ chmod 0700 /home/vagrant/.ssh
 chmod 0640 /home/vagrant/.ssh/authorized_keys
 
 cat <<'EOF' > /etc/sudoers.d/vagrant
+Defaults !requiretty
 vagrant ALL=(ALL) NOPASSWD: ALL
 EOF

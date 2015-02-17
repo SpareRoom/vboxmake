@@ -42,7 +42,7 @@ vboxmake - Create VirtualBox VMs with unattended installation
 # DESCRIPTION
 
 `vboxmake` is a Perl script designed to help automate the production of
-VirtualBox base boxes.
+VirtualBox virtual machines.
 
 **ALPHA CODE ALERT:**  This script is a work in progress, and has been developed
 and tested only on OS X Yosemite.  It's interface and functionality will
@@ -231,8 +231,68 @@ It is highly recommended that Syslinux version 4.0.7 is used, as I have
 been unable to get later versions working correctly with VirtualBox.
 `vboxmake` will attempt to extract `pxelinux.0` from this .tar.gz file.
 
+# QUICK START
+
+This quick start guide will take you through the steps necessary to build a
+minimal CentOS 7.0 VirtualBox VM, from which you will then create a Vagrant
+base box.
+
+- vboxmake directory
+
+    Create a `vboxmake` directory in which to put some downloads:
+
+        mkdir -p ~/vboxmake
+
+- CentOS
+
+    Download a copy of [CentOS-7.0-1406-x86\_64-Everything.iso](http://isoredirect.centos.org/centos/7/isos/x86_64/), and put it in `~/vboxmake`.
+
+- Syslinux
+
+    Download a copy of [Syslinux 4.07](https://www.kernel.org/pub/linux/utils/boot/syslinux/syslinux-4.07.tar.gz), and put it in `~/vboxmake`.
+
+- xorriso
+
+    Download and install [xorriso](http://www.gnu.org/software/xorriso/#download).  See [PREREQUISITES](https://metacpan.org/pod/PREREQUISITES).
+
+- VirtualBox
+
+    Download and install [VirtualBox](https://www.virtualbox.org/wiki/Downloads).
+
+- Vagrant
+
+    Download and install [Vagrant](http://www.vagrantup.com/downloads.html).
+
+- Create a base box
+
+        bin/vboxmake \
+          --linux-iso ~/vboxmake/CentOS-7.0-1406-x86_64-Everything.iso \
+          --unattended=unattended/ks.cfg \
+          --unattended=unattended/custom.sh \
+          --force \
+          --vm-name "basebox-centos-7"
+
+    Wait for the VM to build and then shutdown.
+
+- Make a Vagrant base box for VirtualBox
+
+        mkdir ~/vagrant-centos-7 && cd $_
+        vagrant package --base basebox-centos-7
+        vagrant box add centos-7-box package.box
+        vagrant init centos-7-box
+        vagrant up
+        vagrant ssh
+
 # NOTES
 
 To update the README from this POD, install [Pod::Markdown](https://metacpan.org/pod/Pod::Markdown), and then:
 
     perldoc -Tu bin/vboxmake | pod2markdown > README.md
+
+# POD ERRORS
+
+Hey! **The above document had some coding errors, which are explained below:**
+
+- Around line 263:
+
+    '=item' outside of any '=over'

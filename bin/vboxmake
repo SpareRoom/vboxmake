@@ -44,7 +44,7 @@ vboxmake - Create VirtualBox VMs with unattended installation
 =head1 DESCRIPTION
 
 C<vboxmake> is a Perl script designed to help automate the production of
-VirtualBox base boxes.
+VirtualBox virtual machines.
 
 
 B<ALPHA CODE ALERT:>  This script is a work in progress, and has been developed
@@ -255,6 +255,60 @@ C<vboxmake> needs a copy of C<pxelinux.0> from the Syslinux PXELINUX project.
 It is highly recommended that Syslinux version 4.0.7 is used, as I have
 been unable to get later versions working correctly with VirtualBox.
 C<vboxmake> will attempt to extract C<pxelinux.0> from this .tar.gz file.
+
+=head1 QUICK START
+
+This quick start guide will take you through the steps necessary to build a
+minimal CentOS 7.0 VirtualBox VM, from which you will then create a Vagrant
+base box.
+
+=item vboxmake directory
+
+Create a C<vboxmake> directory in which to put some downloads:
+
+ mkdir -p ~/vboxmake
+
+=item CentOS
+
+Download a copy of L<CentOS-7.0-1406-x86_64-Everything.iso|http://isoredirect.centos.org/centos/7/isos/x86_64/>, and put it in C<~/vboxmake>.
+
+=item Syslinux
+
+Download a copy of L<Syslinux 4.07|https://www.kernel.org/pub/linux/utils/boot/syslinux/syslinux-4.07.tar.gz>, and put it in C<~/vboxmake>.
+
+=item xorriso
+
+Download and install L<xorriso|http://www.gnu.org/software/xorriso/#download>.  See L<PREREQUISITES>.
+
+=item VirtualBox
+
+Download and install L<VirtualBox|https://www.virtualbox.org/wiki/Downloads>.
+
+=item Vagrant
+
+Download and install L<Vagrant|http://www.vagrantup.com/downloads.html>.
+
+=item Create a base box
+
+ bin/vboxmake \
+   --linux-iso ~/vboxmake/CentOS-7.0-1406-x86_64-Everything.iso \
+   --unattended=unattended/ks.cfg \
+   --unattended=unattended/custom.sh \
+   --force \
+   --vm-name "basebox-centos-7"
+
+Wait for the VM to build and then shutdown.
+
+=item Make a Vagrant base box for VirtualBox
+
+ mkdir ~/vagrant-centos-7 && cd $_
+ vagrant package --base basebox-centos-7
+ vagrant box add centos-7-box package.box
+ vagrant init centos-7-box
+ vagrant up
+ vagrant ssh
+
+=back
 
 =head1 NOTES
 
